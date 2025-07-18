@@ -1,0 +1,142 @@
+import re
+from datetime import datetime
+
+# ------------------------ CLASE BASE ------------------------
+
+class Ruta:
+    def __init__(self, codigo, origen, destino, hora_salida, hora_llegada):
+        self.__codigo = codigo
+        self.__origen = origen
+        self.__destino = destino
+        self.__hora_salida = self.validar_hora(hora_salida)
+        self.__hora_llegada = self.validar_hora(hora_llegada)
+
+    def validar_hora(self, hora):
+        try:
+            datetime.strptime(hora, "%H:%M")
+            return hora
+        except ValueError:
+            raise ValueError(f"Hora inválida: {hora}. Usa formato HH:MM")
+
+    def get_codigo(self):
+        return self.__codigo
+    
+    def get_origen(self):
+        return self.__origen
+    
+    def get_destino(self):
+        return self.__destino
+
+    def get_hora_salida(self):
+        return self.__hora_salida
+
+    def get_hora_llegada(self):
+        return self.__hora_llegada
+
+    def generar_reporte(self):  # Polimorfismo base
+        return f"Ruta {self.__codigo}: {self.__origen} → {self.__destino}"
+
+
+# ------------------------ CLASE DERIVADA ------------------------
+
+class Bus(Ruta):
+    def __init__(self, codigo, origen, destino, hora_salida, hora_llegada, capacidad):
+        super().__init__(codigo, origen, destino, hora_salida, hora_llegada)
+        self.capacidad = capacidad
+        self.pasajeros = []  # lista de tuplas (nombre, dni)
+
+    def vender_pasaje(self, nombre, dni):
+        if len(self.pasajeros) >= self.capacidad:
+            print("Bus lleno.")
+            return
+        if any(p[1] == dni for p in self.pasajeros):
+            raise Exception(f"Pasaje ya comprado con DNI {dni}")
+        self.pasajeros.append((nombre, dni))
+        print("Pasaje vendido correctamente.")
+
+    def cancelar_pasaje(self, dni):
+        for pasajero in self.pasajeros:
+            if pasajero[1] == dni:
+                self.pasajeros.remove(pasajero)
+                print("Pasaje cancelado.")
+                return
+        print("Pasaje no encontrado.")
+
+    def generar_reporte(self):  # Polimorfismo
+        ocupados = len(self.pasajeros)
+        libres = self.capacidad - ocupados
+        return (f"Ruta {self.get_codigo()}: {self.get_origen()} → {self.get_destino()}\n"
+                f"Ocupados: {ocupados}, Libres: {libres}\n")
+
+
+# ------------------------ GESTOR DE RUTAS ------------------------
+
+class EmpresaBuses:
+    def __init__(self):
+        self.rutas = {}  # diccionario anidado {ciudad: {codigo: Bus}}
+
+    def registrar_ruta(self, bus):
+        ciudad = bus.get_origen()
+        if ciudad not in self.rutas:
+            self.rutas[ciudad] = {}
+        self.rutas[ciudad][bus.get_codigo()] = bus
+        print(f"Ruta registrada: {bus.get_codigo()}")
+
+    def consultar_por_ciudad(self, ciudad):
+        if ciudad in self.rutas:
+            for codigo, bus in self.rutas[ciudad].items():
+                print(bus.generar_reporte())
+        else:
+            print("No hay rutas para esa ciudad.")
+
+    def generar_reporte_diario(self, archivo):
+        try:
+            with open(archivo, "w") as f:
+                for ciudad in self.rutas:
+                    f.write(f"--- Ciudad: {ciudad} ---\n")
+                    for bus in self.rutas[ciudad].values():
+                        f.write(bus.generar_reporte() + "\n")
+            print("Reporte generado.")
+        except FileNotFoundError:
+            print("Error: no se pudo abrir el archivo.")
+
+
+# ------------------------ DEMO DEL SISTEMA ------------------------
+
+def demo():
+    empresa = EmpresaBuses()
+
+    # Crear algunas rutas
+    try:
+        bus1 = Bus("R001", "Huancayo", "Lima", "08:00", "14:00", 3)
+        bus2 = Bus("R002", "Huancayo", "Ayacucho", "09:30", "15:00", 2)
+        empresa.registrar_ruta(bus1)
+        empresa.registrar_ruta(bus2)
+    except ValueError as e:
+        print(e)
+
+    # Venta de pasajes
+    try:
+        bus1.vender_pasaje("Carlos Pérez", "12345678")
+        bus1.vender_pasaje("Ana Torres", "87654321")
+        bus1.vender_pasaje("Luis Huamán", "11223344")
+        bus1.vender_pasaje("Extra", "00000000")  # No debe venderse
+    except Exception as e:
+        print(e)
+
+    # Cancelación
+    bus1.cancelar_pasaje("87654321")  # Cancelar Ana
+    bus1.vender_pasaje("Nuevo Cliente", "22222222")
+
+    # Consulta
+    print("\nCONSULTA POR CIUDAD:")
+    empresa.consultar_por_ciudad("Huancayo")
+
+    # Reporte diario
+    empresa.generar_reporte_diario("reporte_ocupacion.txt")
+
+
+# ------------------------ EJECUCIÓN ------------------------
+
+if __name__ == "__main__":
+    demo()
